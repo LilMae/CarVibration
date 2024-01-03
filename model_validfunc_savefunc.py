@@ -132,5 +132,62 @@ class CPD_SSL():
             
             print(f'[Test] epoch: {1} | Acc: {true_correct / total * 100:.4f}')
 
+    def valid_epoch(self, data_loader, threshold = 0.0, epochs = 10):
+        
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        best_acc = 0.0
+        self.backbone.eval()
+        
+        true_correct = 0
+        false_correct = 0
+        total = 0
+        
+        
+        setting_threshold = threshold
+        for epoch in range(epochs):
+            true_correct = 0
+            false_correct = 0
+            total = 0
+            accuracy = 0.0
+            with torch.no_grad():
+                for index, batches in enumerate(data_loader):
+                    inputs, labels, is_new = batches
+                    inputs = inputs.to(device)
+                    predicted = self.backbone(inputs)
+                    
+                    for idx in range(len(batches)):               # 각 배치별
+                        if predicted[idx] < setting_threshold:  # 해당 배치가 threshold 이하인지
+                            l0 = labels[idx][0]
+                            # l0 = len(set(labels[idx].unique().numpy()))
+                            tf_flag = True
+                            
+                            for l in labels[idx]:               # 실제 CP인지 확인
+                                if l0 != l: break
+                                else:
+                                    tf_flag = False
+                                    break
+                            
+                            """
+                            if l0 > 1:
+                                true_correct += 1
+                            else:
+                                false_correct += 1
+                            """
+                            
+                            if tf_flag:
+                                true_correct += 1
+                            else:
+                                false_correct += 1
+                    
+                    total += predicted.size(0)
+                    # correct += (predicted == targets).sum().item()   
+                    print(f'[Test] index: {index + 1} | True_Acc: {true_correct / total * 100:.4f}')
+            
+            if best_acc < true_correct / total * 100:
+                best_acc = true_correct / total * 100
+            
+            print(f'[Test] epoch: {epoch + 1} | True_Acc: {true_correct / total * 100} | predicted_Acc: {(true_correct + false_correct) / total * 100:.4f}')
+        print(f'[Test] epoch: {epoch + 1} | best acc : {best_acc:.4f}')
+
 
 
