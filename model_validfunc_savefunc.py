@@ -1,10 +1,12 @@
 import torch
 import torchvision
+import os
 
 
 class CPD_SSL():
     def __init__(self, backbone, feature_size, device):
         self.backbone = self.backbone_load(backbone, feature_size, device)
+        self.backbone_name = backbone
         
     def backbone_load(self, backbone, feature_size, device):
         
@@ -64,6 +66,22 @@ class CPD_SSL():
                 break
             
         
+    def save_model(self, epoch):
+        # Check if the directory exists, and create it if not
+        directory = os.path.dirname("./ckpt")
+        
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        
+        checkpoint = {
+            'model_state_dict': self.model.state_dict(),
+            'epoch': epoch
+        }
+        checkpoint_path = "./ckpt/" + self.backbone_name + "_" + epoch + ".pt"
+        
+        torch.save(checkpoint, checkpoint_path)
+        print(f"Model saved to {checkpoint_path}")
+
     # model 결과값 어떤식으로 나오는지 알려주시면 맞춰서 수정하겠습니다..!
     def valid_one_epoch(self, data_loader, threshold = 0.0):
         
@@ -110,7 +128,7 @@ class CPD_SSL():
                 
                 total += predicted.size(0)
                 # correct += (predicted == targets).sum().item()   
-                print(f'[Test] epoch: {1} | index: {index + 1} | Acc: {true_correct / total * 100:.4f}')
+                print(f'[Test] index: {index + 1} | Acc: {true_correct / total * 100:.4f}')
             
             print(f'[Test] epoch: {1} | Acc: {true_correct / total * 100:.4f}')
 
