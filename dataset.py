@@ -78,8 +78,9 @@ class UntrimmedDataset(Dataset):
         data_stft = torch.stack((x_stft,y_stft,z_stft)).float()
         other_columns = self.data[['uptime', 'class', 'end_file']]
 
-        class_tensor = torch.tensor(self.data['class'][start_idx:end_idx].mode()[0])
-        
+        #class_tensor = torch.tensor(self.data['class'][start_idx:end_idx])
+        class_tensor = torch.tensor([int(value) for value in self.data['class'][start_idx:end_idx]])
+
         is_new = False
         if self.data['end_file'].isin([True]).any():
             is_new = True
