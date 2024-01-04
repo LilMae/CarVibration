@@ -3,6 +3,8 @@ import torchvision
 import torch.optim as optim
 import os
 import json
+import pandas as pd
+
 class CPD_SSL():
     def __init__(self, backbone, feature_size, device):
         self.backbone = self.backbone_load(backbone, feature_size, device)
@@ -68,19 +70,27 @@ class CPD_SSL():
             exit()
         os.makedirs(self.output_path)
         
-        result_dict = {}
+        result ={'Epoch' : [],
+                'loss_epoch' : [],
+                'mean_pos' : [],
+                'mean_neg' : [],
+        }
         
+        result_df = pd.DataFrame(result)
         best_loss = 1000000000000000
         for i in range(epoch):
             loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
             
             print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
-            result_dict['epoch'] = epoch
-            result_dict['loss_epoch'] = loss_epoch
-            result_dict['mean_pos'] = mean_pos_epoch
-            result_dict['mean_neg'] = mean_neg_epoch
-            self.save_as_json(result_dict)
             
+            new_data = {
+                'Epoch': [int(i)],
+                'loss_epoch': [loss_epoch],
+                'mean_pos': [mean_pos_epoch],
+                'mean_neg' : [mean_neg_epoch]
+                }
+            new_data = pd.DataFrame(new_data)
+            result_df = pd.concat([result_df, new_data])
             
             if i%10 == 0:
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
@@ -89,10 +99,12 @@ class CPD_SSL():
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Best_Loss.pth'))
                 best_loss = loss_epoch
                 
-    def save_as_json(self,data):
+        self.save_dataframe_as_json(result_df)
+        
+    def save_dataframe_as_json(self, dataframe):
         path = str(self.output_path) + '/result.json'
-        with open(path, 'w') as file:
-            json.dump(data, file)
+        dataframe.to_json(path, orient='records', indent=4)
+            
             
     def train_one_epoch(self, data_loader, optimizer, transforms=None):
         

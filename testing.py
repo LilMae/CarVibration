@@ -8,19 +8,19 @@ from model import CPD_SSL
 data_root = os.path.join(os.getcwd(), 'slice_data')
 n_fft = 32
 hop_length = int(n_fft/4)
-device = 'cpu'
+device = 'cuda'
 feature_size = 32
 
 dataset = UntrimmedDataset(root_dir=data_root,
                                kernel_size= 64,
                                stride=32,
-                               device='cpu',
+                               device=device,
                                n_fft=n_fft,
                                hop_length=hop_length)
 
 dataloader = DataLoader(dataset, batch_size=32, drop_last=True)
 
-cpd = CPD_SSL(backbone='SqeezeNet', feature_size=32, device='cpu')
+cpd = CPD_SSL(backbone='RegNet', feature_size=32, device=device)
 
 from torchvision import transforms, utils
 transform = transforms.Compose([
