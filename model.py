@@ -82,6 +82,7 @@ class CPD_SSL():
             loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
             
             print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
+<<<<<<< HEAD
             
             new_data = {
                 'Epoch': [int(i)],
@@ -91,6 +92,13 @@ class CPD_SSL():
                 }
             new_data = pd.DataFrame(new_data)
             result_df = pd.concat([result_df, new_data])
+=======
+            result_dict['epoch'] = epoch
+            result_dict['loss_epoch'] = loss_epoch
+            result_dict['mean_pos'] = mean_pos_epoch
+            result_dict['mean_neg'] = mean_neg_epoch
+            self.save_as_json(result_dict)
+>>>>>>> 2d7d299cb50b9ac77958bba6a6156da3bc88c75b
             
             if i%10 == 0:
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
