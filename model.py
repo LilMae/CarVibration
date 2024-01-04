@@ -2,6 +2,7 @@ import torch
 import torchvision
 import torch.optim as optim
 import os
+import json
 class CPD_SSL():
     def __init__(self, backbone, feature_size, device):
         self.backbone = self.backbone_load(backbone, feature_size, device)
@@ -67,11 +68,19 @@ class CPD_SSL():
             exit()
         os.makedirs(self.output_path)
         
+        result_dict = {}
+        
         best_loss = 1000000000000000
         for i in range(epoch):
             loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
             
             print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
+            result_dict['epoch'] = epoch
+            result_dict['loss_epoch'] = loss_epoch
+            result_dict['mean_pos'] = mean_pos_epoch
+            result_dict['mean_neg'] = mean_neg_epoch
+            self.save_as_json(result_dict)
+            exit()
             
             if i%10 == 0:
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
@@ -79,7 +88,12 @@ class CPD_SSL():
                 print(f'Best Loss : {loss_epoch}')
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Best_Loss.pth'))
                 best_loss = loss_epoch
-
+                
+    def save_as_json(self,data):
+        path = str(self.output_path) + '/result.json'
+        with open(path, 'w') as file:
+            json.dump(data, file)
+            
     def train_one_epoch(self, data_loader, optimizer, transforms=None):
         
         loss_epoch = 0.0
