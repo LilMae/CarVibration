@@ -1,7 +1,7 @@
 import torch
 import torchvision
 import torch.optim as optim
-
+import os
 class CPD_SSL():
     def __init__(self, backbone, feature_size, device):
         self.backbone = self.backbone_load(backbone, feature_size, device)
@@ -59,11 +59,26 @@ class CPD_SSL():
     def train(self, train_loader, epoch, transforms):
         optimier = optim.Adam(self.backbone.parameters(), lr=0.001)
         
+        self.experiment_name = self.backbone.__class__.__name__
+        print(f'backbone : {self.backbone.__class__.__name__}')
+        self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
+        if os.path.isdir(self.output_path):
+            print(f'Error : path{self.output_path} is already exist')
+            exit()
+        os.makedirs(self.output_path)
+        
+        best_loss = 1000000000000000
         for i in range(epoch):
             loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
             
             print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
             
+            if i%10 == 0:
+                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
+            if loss_epoch < best_loss:
+                print(f'Best Loss : {loss_epoch}')
+                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Best_Loss.pth'))
+                best_loss = loss_epoch
 
     def train_one_epoch(self, data_loader, optimizer, transforms=None):
         
@@ -115,8 +130,6 @@ class CPD_SSL():
         pos_loss = criterion(pos, pos_label)
         neg_loss = criterion(neg, neg_label)
 
-        # print(f'pos_sum : {pos_loss}')
-        # print(f'neg_sum : {neg_loss}')
 
         loss = pos_loss+neg_loss
 
@@ -129,7 +142,8 @@ class CPD_SSL():
         loss.backward()
         optimizer.step()
         
-        return loss.item(), pos_loss_mean.item(), neg_loss_mean.item()
+        loss_mean = pos_loss_mean + neg_loss_mean
+        return loss_mean.item(), pos_loss_mean.item(), neg_loss_mean.item()
         
     # def train_one_step(self, batch, optimizer):
         
