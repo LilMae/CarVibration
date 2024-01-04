@@ -1,7 +1,0 @@
-Aggressive_breaking
-Aggressive_acceleration
-Aggressive_left_turn
-Aggressive_right_turn
-Aggressive_left_lane_change
-Aggressive_right_lane_change
-Non_aggressive_event
