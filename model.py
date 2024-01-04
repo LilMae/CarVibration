@@ -82,7 +82,6 @@ class CPD_SSL():
             loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
             
             print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
-<<<<<<< HEAD
             
             new_data = {
                 'Epoch': [int(i)],
@@ -92,13 +91,6 @@ class CPD_SSL():
                 }
             new_data = pd.DataFrame(new_data)
             result_df = pd.concat([result_df, new_data])
-=======
-            result_dict['epoch'] = epoch
-            result_dict['loss_epoch'] = loss_epoch
-            result_dict['mean_pos'] = mean_pos_epoch
-            result_dict['mean_neg'] = mean_neg_epoch
-            self.save_as_json(result_dict)
->>>>>>> 2d7d299cb50b9ac77958bba6a6156da3bc88c75b
             
             if i%10 == 0:
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
@@ -140,76 +132,38 @@ class CPD_SSL():
         
         return loss_epoch, mean_pos_epoch, mean_neg_epoch
         
+        
     def train_one_step(self, batch, optimizer):
+        
+        loss = InfoNCE(negative_mode='paired').to(self.device)
+        batch = batch.to(self.device)
         
         batch = self.backbone(batch)
         
-        norm_batch = F.normalize(batch, p=2,dim=1)
-        sim_matrix = torch.mm(norm_batch, norm_batch.t())
-        criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
+        query = batch[:-1]
+        positive_pair = batch[1:]
+        negative_pair = []
 
-        pos = []
-        neg = []
-        for i in range(batch.shape[0]):
-            for j in range(batch.shape[0]):
-                if j==i+1:
-                    pos.append(sim_matrix[i][j])
-                elif j>i:
-                    neg.append(sim_matrix[i][j])
-        pos = torch.stack(pos)
-        pos_label = torch.ones_like(pos)
-        neg = torch.stack(neg)
-        neg_label = torch.zeros_like(neg)
+        for i in range(len(batch)-1):
+            neg_i = []
+            for j in range(len(batch)):
+                if i!=j and j!=i+1:
+                    neg_i.append(batch[j])
+            neg_i = torch.stack(neg_i)
+            negative_pair.append(neg_i)
 
-        pos_loss = criterion(pos, pos_label)
-        neg_loss = criterion(neg, neg_label)
+        negative_pair = torch.stack(negative_pair).to(self.device)
 
 
-        loss = pos_loss+neg_loss
+        loss_step, mean_pos, mean_neg = loss(query, positive_pair, negative_pair)
 
-        pos_loss_mean = pos_loss/len(pos)
-        neg_loss_mean = neg_loss/len(neg)
-
-        # print(f'loss : {loss} pos_mean : {pos_loss_mean} neg_mean : {neg_loss_mean}')
-        
         optimizer.zero_grad()
-        loss.backward()
+        loss_step.backward()
         optimizer.step()
         
-        loss_mean = pos_loss_mean + neg_loss_mean
-        return loss_mean.item(), pos_loss_mean.item(), neg_loss_mean.item()
-        
-    # def train_one_step(self, batch, optimizer):
-        
-    #     loss = InfoNCE(negative_mode='paired').to(self.device)
-    #     batch = batch.to(self.device)
-        
-    #     batch = self.backbone(batch)
-        
-    #     query = batch[:-1]
-    #     positive_pair = batch[1:]
-    #     negative_pair = []
-
-    #     for i in range(len(batch)-1):
-    #         neg_i = []
-    #         for j in range(len(batch)):
-    #             if i!=j and j!=i+1:
-    #                 neg_i.append(batch[j])
-    #         neg_i = torch.stack(neg_i)
-    #         negative_pair.append(neg_i)
-
-    #     negative_pair = torch.stack(negative_pair).to(self.device)
-
-
-    #     loss_step, mean_pos, mean_neg = loss(query, positive_pair, negative_pair)
-
-    #     optimizer.zero_grad()
-    #     loss_step.backward()
-    #     optimizer.step()
-        
 
         
-    #     return loss_step.item(), mean_pos.item(), mean_neg.item()
+        return loss_step.item(), mean_pos.item(), mean_neg.item()
 
 
 

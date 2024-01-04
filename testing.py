@@ -8,7 +8,7 @@ from model import CPD_SSL
 data_root = os.path.join(os.getcwd(), 'slice_data')
 n_fft = 32
 hop_length = int(n_fft/4)
-device = 'cuda'
+device = 'cpu'
 feature_size = 32
 
 dataset = UntrimmedDataset(root_dir=data_root,
