@@ -80,7 +80,7 @@ class CPD_SSL():
             result_dict['mean_pos'] = mean_pos_epoch
             result_dict['mean_neg'] = mean_neg_epoch
             self.save_as_json(result_dict)
-            exit()
+            
             
             if i%10 == 0:
                 torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
