@@ -164,6 +164,78 @@ class CPD_SSL():
 
         
         return loss_step.item(), mean_pos.item(), mean_neg.item()
+    
+    def valid_one_epoch(self, data_loader, threshold = 0.0, transforms=None):
+        
+        best_acc = 0.0
+        self.backbone.eval()
+        
+        true_correct = 0
+        false_correct = 0
+        total = 0
+        
+        setting_threshold = threshold
+
+        anomally = 0.0
+        with torch.no_grad():
+            for index, batches in enumerate(data_loader):
+                
+                data_stft, labels, is_new = batches
+                
+                for label in labels:
+                    start_l = label[0]
+                    for l in label:
+                        if start_l == l: continue
+                        else:
+                            anomally +=1
+                            break
+                
+                data_stft.to(self.device)
+                if transforms is not None:
+                    data_stft = transforms(data_stft)
+                
+                batch = self.backbone(data_stft)
+                for idx in range(len(batch)):                               # 각 배치별
+                    
+                    if idx + 1 >= len(batch):
+                        break
+                    
+                    cos_sim_f = nn.CosineSimilarity(dim=0)
+                    cos_sim = cos_sim_f(batch[idx],batch[idx+1])            # 근사한 2쌍 cosine similarity
+                    
+                    if cos_sim < setting_threshold:                         # 해당 배치가 threshold 이하인지
+                        l1_0 = labels[idx][0]
+                        # l0 = len(set(labels[idx].unique().numpy()))
+                        tf_flag1 = True 
+                        
+                        for l_ in labels[idx]:                               # 실제 CP인지 확인
+                            if l1_0 == l_: continue
+                            else:
+                                tf_flag1 = False
+                                break
+                        
+                        
+                        l2_0 = labels[idx + 1][0]
+                        # l0 = len(set(labels[idx].unique().numpy()))
+                        tf_flag2 = True
+                        
+                        for l__ in labels[idx + 1]:                               # 실제 CP인지 확인
+                            if l2_0 == l__: continue
+                            else:
+                                tf_flag2 = False
+                                break
+                        
+                        if tf_flag1 == False or tf_flag2 == False:
+                            true_correct += 1
+                        else:
+                            false_correct += 1
+                
+                # correct += (predicted == targets).sum().item()
+                print(labels)
+                print(true_correct, anomally)
+                print(f'[Test] index: {index + 1} | true Acc: {true_correct / anomally * 100:.4f}')
+            
+            print(f'[Test] epoch: {1} | true Acc: {true_correct / anomally * 100:.4f}')
 
 
 
