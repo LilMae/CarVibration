@@ -38,7 +38,7 @@ class CPD_SSL():
             mobile_net = torchvision.models.mobilenet_v3_large().to(device)
             mobile_net.classifier = torch.nn.Sequential(
                 torch.nn.Linear(960, 1280, bias=True),
-                torch.nn.Linear(1250, feature_size, bias=True))
+                torch.nn.Linear(1280, feature_size, bias=True))
             return mobile_net
 
         # 5. EfficientNet
