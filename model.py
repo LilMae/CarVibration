@@ -231,8 +231,8 @@ class CPD_SSL():
                             false_correct += 1
                 
                 # correct += (predicted == targets).sum().item()
-                print(labels)
-                print(true_correct, anomally)
+                #print(labels)
+                #print(true_correct, anomally)
                 print(f'[Test] index: {index + 1} | true Acc: {true_correct / anomally * 100:.4f}')
             
             print(f'[Test] epoch: {1} | true Acc: {true_correct / anomally * 100:.4f}')
