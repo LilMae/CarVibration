@@ -16,11 +16,11 @@ feature_size = 32
 batch_size = 32
 
 dataset = UntrimmedDataset(root_dir=data_root,
-                               kernel_size= 64,
-                               stride=32,
-                               device=device,
-                               n_fft=n_fft,
-                               hop_length=hop_length)
+                            kernel_size= 64,
+                            stride=32,
+                            device=device,
+                            n_fft=n_fft,
+                            hop_length=hop_length)
 
 dataloader = DataLoader(dataset, batch_size=batch_size, drop_last=True)
 

@@ -5,7 +5,7 @@ import os
 root = os.getcwd()
 
 #--------Experiment Info
-model = 'RegNet'
+model = 'SqueezeNet'
 batch = '32'
 kernel_size = '64'
 stride = '32'
