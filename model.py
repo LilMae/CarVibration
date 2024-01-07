@@ -4,6 +4,9 @@ import torch.optim as optim
 import os
 import json
 import pandas as pd
+import numpy as np
+from sklearn import svm
+from sklearn.metrics import accuracy_score, precision_score
 
 class CPD_SSL():
     def __init__(self, backbone, feature_size, device):
@@ -236,7 +239,68 @@ class CPD_SSL():
                 print(f'[Test] index: {index + 1} | true Acc: {true_correct / anomally * 100:.4f}')
             
             print(f'[Test] epoch: {1} | true Acc: {true_correct / anomally * 100:.4f}')
+    
+    def load_model(self, pth_path=None):
+        
+        self.experiment_name = self.backbone.__class__.__name__
+        print(f'backbone : {self.backbone.__class__.__name__}')
+        self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
+        
+        if pth_path is None:
+            
+            best_pth = os.path.join(self.output_path, 'Best_Loss.pth')
+            self.backbone.load_state_dict(torch.load(best_pth))
+            print(best_pth)
+            
+            
+        else:
+            self.backbone.load_state_dict(torch.load(pth_path))
+            print(pth_path)
+    
+    def train_classifier(self, data_loader,transforms):
+        train_data, train_labels = self.load_classify_dataset(dataloader=data_loader, transforms=transforms)
+        self.clf = svm.SVC(kernel='linear', decision_function_shape='ovr')
+        self.clf.fit(train_data, train_labels)
+        print('Finish_Train')
+    
+    def test_classifier(self, data_loader,transforms):
+        test_data, test_labels = self.load_classify_dataset(dataloader=data_loader, transforms=transforms)
+        predictions = self.clf.predict(test_data)
+        # 정확도 계산
+        accuracy = accuracy_score(test_labels, predictions)
 
+        # 정밀도 계산
+        precision = precision_score(test_labels, predictions, average='weighted')
+
+        # 결과 출력
+        print(f'정확도: {accuracy:.2f}')
+        print(f'정밀도: {precision:.2f}')
+        
+        return accuracy, precision
+    
+    def load_classify_dataset(self, dataloader, transforms):
+        dataset_np = []
+        class_np = []
+        
+        for batch in dataloader:
+            
+            data, class_tensor, is_new = batch
+            
+            class_info = class_tensor[0][0].item()
+            
+            data = data.to(self.device)
+            
+            if transforms is not None:
+                data = transforms(data)
+            
+            feature = self.backbone(data)
+            feature = feature.squeeze(dim=0).detach().tolist()
+            dataset_np.append(feature)
+            class_np.append(class_info)
+            
+        dataset_np = np.array(dataset_np)
+        class_np = np.array(class_np)
+        return dataset_np, class_np
 
 
 import torch
