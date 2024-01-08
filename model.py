@@ -103,7 +103,50 @@ class CPD_SSL():
                 best_loss = loss_epoch
                 
         self.save_dataframe_as_json(result_df)
+    
+    
+    def train_auto(self, train_loader, epoch, transforms, folder_name):
+        optimier = optim.Adam(self.backbone.parameters(), lr=0.001)
         
+        self.experiment_name = self.backbone.__class__.__name__
+        print(f'backbone : {self.backbone.__class__.__name__}')
+        self.output_path = os.path.join(os.getcwd(), folder_name ,self.experiment_name)
+        if os.path.isdir(self.output_path):
+            print(f'Error : path{self.output_path} is already exist')
+            exit()
+        os.makedirs(self.output_path)
+        
+        result ={'Epoch' : [],
+                'loss_epoch' : [],
+                'mean_pos' : [],
+                'mean_neg' : [],
+        }
+        
+        result_df = pd.DataFrame(result)
+        best_loss = 1000000000000000
+        for i in range(epoch):
+            loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
+            
+            print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
+            
+            new_data = {
+                'Epoch': [int(i)],
+                'loss_epoch': [loss_epoch],
+                'mean_pos': [mean_pos_epoch],
+                'mean_neg' : [mean_neg_epoch]
+                }
+            new_data = pd.DataFrame(new_data)
+            result_df = pd.concat([result_df, new_data])
+            
+            if i%10 == 0:
+                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
+            if loss_epoch < best_loss:
+                print(f'Best Loss : {loss_epoch}')
+                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Best_Loss.pth'))
+                best_loss = loss_epoch
+                
+        self.save_dataframe_as_json(result_df)
+    
     def save_dataframe_as_json(self, dataframe):
         path = str(self.output_path) + '/result.json'
         dataframe.to_json(path, orient='records', indent=4)
@@ -174,6 +217,132 @@ class CPD_SSL():
         self.backbone.eval()
         self.experiment_name = self.backbone.__class__.__name__
         self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
+        
+        true_correct = 0
+        false_correct = 0
+        true_negative = 0
+        false_negative = 0
+        
+        total = 0
+        precision = 0
+        acc = 0
+        
+        setting_threshold = threshold
+
+        anomally = 0.0
+        with torch.no_grad():
+            for index, batches in enumerate(data_loader):
+                
+                data_stft, labels, is_new = batches
+                for label in labels:
+                    start_l = label[0]
+                    for l in label:
+                        if start_l == l: continue
+                        else:
+                            anomally +=1
+                            break
+                
+                data_stft.to(self.device)
+                if transforms is not None:
+                    data_stft = transforms(data_stft)
+                
+                batch = self.backbone(data_stft)
+                
+                cos_sim_list = []
+                for idx in range(len(batch)):                               # 각 배치별
+                    
+                    if idx + 1 >= len(batch):
+                        break
+                    
+                    cos_sim_f = nn.CosineSimilarity(dim=0)
+                    cos_sim = cos_sim_f(batch[idx],batch[idx+1])            # 근사한 2쌍 cosine similarity
+                    cos_sim_list.append(cos_sim)
+                    print(cos_sim)
+                total += len(cos_sim_list)
+                
+                for idx in range(len(cos_sim_list)):
+                    if cos_sim_list[idx] < setting_threshold:                         # 해당 배치가 threshold 이하인지
+                        l1_0 = labels[idx][0]
+                        # l0 = len(set(labels[idx].unique().numpy()))
+                        tf_flag1 = True 
+                        
+                        for l_ in labels[idx]:                               # 실제 CP인지 확인
+                            if l1_0 == l_: continue
+                            else:
+                                tf_flag1 = False
+                                true_correct += 1
+                                break
+                        
+                        tf_flag2 = True
+                        if tf_flag1 == True:
+                            l2_0 = labels[idx + 1][0]
+                            # l0 = len(set(labels[idx].unique().numpy()))
+                            
+                            for l__ in labels[idx + 1]:                               # 실제 CP인지 확인
+                                if l2_0 == l__: continue
+                                else:
+                                    true_correct += 1
+                                    tf_flag2 = False
+                                    break
+                        
+                        if tf_flag1 == True and tf_flag2 == True:
+                            false_correct += 1
+                    
+                    if cos_sim_list[idx] >= setting_threshold:                         # 해당 배치가 threshold 이하인지
+                        # l0 = len(set(labels[idx].unique().numpy()))
+                        l1_0 = labels[idx][0]
+                        tf_flag1 = True 
+                        
+                        for l_ in labels[idx]:                               # 실제 CP인지 확인
+                            if l1_0 == l_: continue
+                            else:
+                                tf_flag1 = False
+                                false_negative += 1
+                                break
+                        
+                        
+                        # l0 = len(set(labels[idx].unique().numpy()))
+                        l2_0 = labels[idx + 1][0]
+                        tf_flag2 = True
+                        
+                        if tf_flag1 == True:
+                            for l__ in labels[idx + 1]:                               # 실제 CP인지 확인
+                                if l2_0 == l__: continue
+                                else:
+                                    tf_flag2 = False
+                                    false_negative += 1
+                                    break
+                        
+                        if tf_flag1 == True and tf_flag2 == True:
+                            true_negative +=1
+                # correct += (predicted == targets).sum().item()
+                #print(labels)
+                #print(true_correct, anomally)
+                if true_correct + false_correct > 0:
+                    precision = true_correct / (true_correct + false_correct) * 100
+                    acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
+                    print(f'[Test] index: {index + 1} | Acc: {acc} | Precision : {precision:.4f}')
+            if true_correct + false_correct > 0:
+                precision = true_correct / (true_correct + false_correct) * 100
+            
+            acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
+            print(f'[Test] epoch: {1} | Acc: {acc} | Precision : {precision:.4f}')
+        
+        result = {'model' : [self.experiment_name + '_'+epoch],
+                'threshold' : [threshold],
+                'Acc' : [acc],
+                'Precision' : [precision]
+        }
+        result_df = pd.DataFrame(result)
+        path = str(self.output_path) + '/' + self.experiment_name + '_' + epoch + '_' + str(threshold) + '_Acc_Precision.json'
+        result_df.to_json(path, orient='records', indent=4)
+    
+    def valid_auto(self, data_loader, epoch, folder_name, threshold = 0.0, transforms=None):
+        
+        best_acc = 0.0
+        self.backbone.eval()
+        self.experiment_name = self.backbone.__class__.__name__
+        self.output_path = os.path.join(os.getcwd(), folder_name ,self.experiment_name)
         
         true_correct = 0
         false_correct = 0
@@ -355,7 +524,11 @@ class CPD_SSL():
         dataset_np = np.array(dataset_np)
         class_np = np.array(class_np)
         return dataset_np, class_np
-
+    
+    def train_set(self, folder_name, train_loader, test_loader, epochs, transforms, threshold=0.0):
+        
+        self.train_auto(train_loader, epochs, transforms, folder_name)
+        self.valid_auto(test_loader, epochs, folder_name, threshold, transforms)
 
 import torch
 import torch.nn.functional as F
