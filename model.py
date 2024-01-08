@@ -67,7 +67,7 @@ class CPD_SSL():
         
         self.experiment_name = self.backbone.__class__.__name__
         print(f'backbone : {self.backbone.__class__.__name__}')
-        self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
+        self.output_path = os.path.join(os.getcwd(), 'outputs_k32_s16' ,self.experiment_name)
         if os.path.isdir(self.output_path):
             print(f'Error : path{self.output_path} is already exist')
             exit()
@@ -103,50 +103,7 @@ class CPD_SSL():
                 best_loss = loss_epoch
                 
         self.save_dataframe_as_json(result_df)
-    
-    
-    def train_auto(self, train_loader, epoch, transforms, folder_name):
-        optimier = optim.Adam(self.backbone.parameters(), lr=0.001)
         
-        self.experiment_name = self.backbone.__class__.__name__
-        print(f'backbone : {self.backbone.__class__.__name__}')
-        self.output_path = os.path.join(os.getcwd(), folder_name ,self.experiment_name)
-        if os.path.isdir(self.output_path):
-            print(f'Error : path{self.output_path} is already exist')
-            exit()
-        os.makedirs(self.output_path)
-        
-        result ={'Epoch' : [],
-                'loss_epoch' : [],
-                'mean_pos' : [],
-                'mean_neg' : [],
-        }
-        
-        result_df = pd.DataFrame(result)
-        best_loss = 1000000000000000
-        for i in range(epoch):
-            loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
-            
-            print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
-            
-            new_data = {
-                'Epoch': [int(i)],
-                'loss_epoch': [loss_epoch],
-                'mean_pos': [mean_pos_epoch],
-                'mean_neg' : [mean_neg_epoch]
-                }
-            new_data = pd.DataFrame(new_data)
-            result_df = pd.concat([result_df, new_data])
-            
-            if i%10 == 0:
-                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
-            if loss_epoch < best_loss:
-                print(f'Best Loss : {loss_epoch}')
-                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Best_Loss.pth'))
-                best_loss = loss_epoch
-                
-        self.save_dataframe_as_json(result_df)
-    
     def save_dataframe_as_json(self, dataframe):
         path = str(self.output_path) + '/result.json'
         dataframe.to_json(path, orient='records', indent=4)
@@ -211,12 +168,14 @@ class CPD_SSL():
         
         return loss_step.item(), mean_pos.item(), mean_neg.item()
     
-    def valid_one_epoch(self, data_loader,epoch, threshold = 0.0, transforms=None):
+    
+    
+    def valid_one_epoch(self, data_loader,file_name, threshold = 0.0, transforms=None):
         
         best_acc = 0.0
         self.backbone.eval()
         self.experiment_name = self.backbone.__class__.__name__
-        self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
+        self.output_path = os.path.join(os.getcwd(), 'outputs_nfft16_h2_b64_k64_s32' ,self.experiment_name)
         
         true_correct = 0
         false_correct = 0
@@ -322,20 +281,69 @@ class CPD_SSL():
                     precision = true_correct / (true_correct + false_correct) * 100
                     acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
                     print(f'[Test] index: {index + 1} | Acc: {acc} | Precision : {precision:.4f}')
+            
             if true_correct + false_correct > 0:
                 precision = true_correct / (true_correct + false_correct) * 100
             
             acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
             print(f'[Test] epoch: {1} | Acc: {acc} | Precision : {precision:.4f}')
+        print(f'[Test] epoch: {1} | anomallay: {anomally} | true correct : {true_correct} | false correct : {false_correct} | true negative : {true_negative} | false negative : {false_negative}')
+        print(f'total : {total} | anomallay: {anomally} | sum {true_correct + true_negative + false_correct +false_negative}')
         
-        result = {'model' : [self.experiment_name + '_'+epoch],
+        directory, epoch = os.path.split(file_name)
+        result = {'model' : [self.experiment_name + epoch],
                 'threshold' : [threshold],
                 'Acc' : [acc],
                 'Precision' : [precision]
         }
+        epoch = epoch.split('.')[0]
         result_df = pd.DataFrame(result)
         path = str(self.output_path) + '/' + self.experiment_name + '_' + epoch + '_' + str(threshold) + '_Acc_Precision.json'
+        print(self.output_path)
         result_df.to_json(path, orient='records', indent=4)
+    
+    
+    def train_auto(self, train_loader, epoch, transforms, folder_name):
+        optimier = optim.Adam(self.backbone.parameters(), lr=0.001)
+        
+        self.experiment_name = self.backbone.__class__.__name__
+        print(f'backbone : {self.backbone.__class__.__name__}')
+        self.output_path = os.path.join(os.getcwd(), folder_name ,self.experiment_name)
+        if os.path.isdir(self.output_path):
+            print(f'Error : path{self.output_path} is already exist')
+            exit()
+        os.makedirs(self.output_path)
+        
+        result ={'Epoch' : [],
+                'loss_epoch' : [],
+                'mean_pos' : [],
+                'mean_neg' : [],
+        }
+        
+        result_df = pd.DataFrame(result)
+        best_loss = 1000000000000000
+        for i in range(epoch):
+            loss_epoch, mean_pos_epoch, mean_neg_epoch = self.train_one_epoch(data_loader=train_loader, optimizer=optimier, transforms=transforms)
+            
+            print(f'Epoch : {i}/{epoch} | loss_epoch : {loss_epoch} | mean_pos : {mean_pos_epoch} | mean_neg : {mean_neg_epoch}')
+            
+            new_data = {
+                'Epoch': [int(i)],
+                'loss_epoch': [loss_epoch],
+                'mean_pos': [mean_pos_epoch],
+                'mean_neg' : [mean_neg_epoch]
+                }
+            new_data = pd.DataFrame(new_data)
+            result_df = pd.concat([result_df, new_data])
+            
+            if i%10 == 0:
+                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Epoch_{i}.pth'))
+            if loss_epoch < best_loss:
+                print(f'Best Loss : {loss_epoch}')
+                torch.save(self.backbone.state_dict(), os.path.join(self.output_path, f'Best_Loss.pth'))
+                best_loss = loss_epoch
+                
+        self.save_dataframe_as_json(result_df)
     
     def valid_auto(self, data_loader, epoch, folder_name, threshold = 0.0, transforms=None):
         
@@ -444,30 +452,36 @@ class CPD_SSL():
                 # correct += (predicted == targets).sum().item()
                 #print(labels)
                 #print(true_correct, anomally)
-                if anomally > 0 and true_correct + false_correct > 0:
+                if true_correct + false_correct > 0:
                     precision = true_correct / (true_correct + false_correct) * 100
                     acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
                     print(f'[Test] index: {index + 1} | Acc: {acc} | Precision : {precision:.4f}')
-            if anomally > 0 and true_correct > 0 and false_correct > 0:
+            if true_correct + false_correct > 0:
                 precision = true_correct / (true_correct + false_correct) * 100
-                acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
-                
-                print(f'[Test] epoch: {1} | Acc: {acc} | Precision : {precision:.4f}')
+            acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
+            print(f'[Test] epoch: {1} | Acc: {acc} | Precision : {precision:.4f}')
         
-        result = {'model' : [self.experiment_name + '_'+epoch],
+        result = {'model' : [self.experiment_name + '_' + str(epoch)],
                 'threshold' : [threshold],
                 'Acc' : [acc],
                 'Precision' : [precision]
         }
         result_df = pd.DataFrame(result)
-        path = str(self.output_path) + '/' + self.experiment_name + '_' + epoch + '_' + str(threshold) + '_Acc_Precision.json'
+        path = str(self.output_path) + '/' + self.experiment_name + '_' + str(epoch) + '_' + str(threshold) + '_Acc_Precision.json'
         result_df.to_json(path, orient='records', indent=4)
+    
+    
+    def train_set(self, folder_name, train_loader, test_loader, epochs, transforms):
+        self.train_auto(train_loader, epochs, transforms, folder_name)
+        threshold = [0.0, 0.4, 0.6]
+        for thre in threshold:
+            self.valid_auto(test_loader, epochs, folder_name, thre, transforms)
     
     def load_model(self, pth_path=None):
         
         self.experiment_name = self.backbone.__class__.__name__
         print(f'backbone : {self.backbone.__class__.__name__}')
-        self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
+        self.output_path = os.path.join(os.getcwd(), 'outputs_h2_b64_k128_s64' ,self.experiment_name)
         
         if pth_path is None:
             
@@ -524,11 +538,7 @@ class CPD_SSL():
         dataset_np = np.array(dataset_np)
         class_np = np.array(class_np)
         return dataset_np, class_np
-    
-    def train_set(self, folder_name, train_loader, test_loader, epochs, transforms, threshold=0.0):
-        
-        self.train_auto(train_loader, epochs, transforms, folder_name)
-        self.valid_auto(test_loader, epochs, folder_name, threshold, transforms)
+
 
 import torch
 import torch.nn.functional as F
