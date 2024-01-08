@@ -8,7 +8,7 @@ from model import CPD_SSL
 
 
 data_root = os.path.join(os.getcwd(), 'slice_data')
-model_name='RegNet'
+model_name='EfficientNet'
 n_fft = 32
 hop_length = int(n_fft/4)
 device = 'cpu'
@@ -26,9 +26,12 @@ dataloader = DataLoader(dataset, batch_size=batch_size, drop_last=True)
 
 cpd = CPD_SSL(backbone=model_name, feature_size=feature_size, device=device)
 
+
 from torchvision import transforms, utils
 transform = transforms.Compose([
     transforms.Resize((128, 128), antialias=True),  # 이미지 크기를 256x256으로 조정
 ])
+epoch=200
 
-cpd.train(dataloader, epoch=200, transforms=transform)
+cpd.train(dataloader, epoch=epoch, transforms=transform)
+cpd.valid_one_epoch(dataloader, epoch, transforms=transform)

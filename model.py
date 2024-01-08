@@ -168,14 +168,21 @@ class CPD_SSL():
         
         return loss_step.item(), mean_pos.item(), mean_neg.item()
     
-    def valid_one_epoch(self, data_loader, threshold = 0.0, transforms=None):
+    def valid_one_epoch(self, data_loader,epoch, threshold = 0.0, transforms=None):
         
         best_acc = 0.0
         self.backbone.eval()
+        self.experiment_name = self.backbone.__class__.__name__
+        self.output_path = os.path.join(os.getcwd(), 'outputs' ,self.experiment_name)
         
         true_correct = 0
         false_correct = 0
+        true_negative = 0
+        false_negative = 0
+        
         total = 0
+        precision = 0
+        acc = 0
         
         setting_threshold = threshold
 
@@ -184,7 +191,6 @@ class CPD_SSL():
             for index, batches in enumerate(data_loader):
                 
                 data_stft, labels, is_new = batches
-                
                 for label in labels:
                     start_l = label[0]
                     for l in label:
@@ -198,6 +204,8 @@ class CPD_SSL():
                     data_stft = transforms(data_stft)
                 
                 batch = self.backbone(data_stft)
+                
+                cos_sim_list = []
                 for idx in range(len(batch)):                               # 각 배치별
                     
                     if idx + 1 >= len(batch):
@@ -205,8 +213,12 @@ class CPD_SSL():
                     
                     cos_sim_f = nn.CosineSimilarity(dim=0)
                     cos_sim = cos_sim_f(batch[idx],batch[idx+1])            # 근사한 2쌍 cosine similarity
-                    
-                    if cos_sim < setting_threshold:                         # 해당 배치가 threshold 이하인지
+                    cos_sim_list.append(cos_sim)
+                    print(cos_sim)
+                total += len(cos_sim_list)
+                
+                for idx in range(len(cos_sim_list)):
+                    if cos_sim_list[idx] < setting_threshold:                         # 해당 배치가 threshold 이하인지
                         l1_0 = labels[idx][0]
                         # l0 = len(set(labels[idx].unique().numpy()))
                         tf_flag1 = True 
@@ -215,30 +227,72 @@ class CPD_SSL():
                             if l1_0 == l_: continue
                             else:
                                 tf_flag1 = False
+                                true_correct += 1
+                                break
+                        
+                        tf_flag2 = True
+                        if tf_flag1 == True:
+                            l2_0 = labels[idx + 1][0]
+                            # l0 = len(set(labels[idx].unique().numpy()))
+                            
+                            for l__ in labels[idx + 1]:                               # 실제 CP인지 확인
+                                if l2_0 == l__: continue
+                                else:
+                                    true_correct += 1
+                                    tf_flag2 = False
+                                    break
+                        
+                        if tf_flag1 == True and tf_flag2 == True:
+                            false_correct += 1
+                    
+                    if cos_sim_list[idx] >= setting_threshold:                         # 해당 배치가 threshold 이하인지
+                        # l0 = len(set(labels[idx].unique().numpy()))
+                        l1_0 = labels[idx][0]
+                        tf_flag1 = True 
+                        
+                        for l_ in labels[idx]:                               # 실제 CP인지 확인
+                            if l1_0 == l_: continue
+                            else:
+                                tf_flag1 = False
+                                false_negative += 1
                                 break
                         
                         
-                        l2_0 = labels[idx + 1][0]
                         # l0 = len(set(labels[idx].unique().numpy()))
+                        l2_0 = labels[idx + 1][0]
                         tf_flag2 = True
                         
-                        for l__ in labels[idx + 1]:                               # 실제 CP인지 확인
-                            if l2_0 == l__: continue
-                            else:
-                                tf_flag2 = False
-                                break
+                        if tf_flag1 == True:
+                            for l__ in labels[idx + 1]:                               # 실제 CP인지 확인
+                                if l2_0 == l__: continue
+                                else:
+                                    tf_flag2 = False
+                                    false_negative += 1
+                                    break
                         
-                        if tf_flag1 == False or tf_flag2 == False:
-                            true_correct += 1
-                        else:
-                            false_correct += 1
-                
+                        if tf_flag1 == True and tf_flag2 == True:
+                            true_negative +=1
                 # correct += (predicted == targets).sum().item()
                 #print(labels)
                 #print(true_correct, anomally)
-                print(f'[Test] index: {index + 1} | true Acc: {true_correct / anomally * 100:.4f}')
-            
-            print(f'[Test] epoch: {1} | true Acc: {true_correct / anomally * 100:.4f}')
+                if anomally > 0 and true_correct + false_correct > 0:
+                    precision = true_correct / (true_correct + false_correct) * 100
+                    acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
+                    print(f'[Test] index: {index + 1} | Acc: {acc} | Precision : {precision:.4f}')
+            if anomally > 0 and true_correct > 0 and false_correct > 0:
+                precision = true_correct / (true_correct + false_correct) * 100
+                acc = (true_correct + true_negative) / (true_correct + false_correct + true_negative + false_negative) * 100
+                
+                print(f'[Test] epoch: {1} | Acc: {acc} | Precision : {precision:.4f}')
+        
+        result = {'model' : [self.experiment_name + '_'+epoch],
+                'threshold' : [threshold],
+                'Acc' : [acc],
+                'Precision' : [precision]
+        }
+        result_df = pd.DataFrame(result)
+        path = str(self.output_path) + '/' + self.experiment_name + '_' + epoch + '_' + str(threshold) + '_Acc_Precision.json'
+        result_df.to_json(path, orient='records', indent=4)
     
     def load_model(self, pth_path=None):
         
