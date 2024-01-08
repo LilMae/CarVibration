@@ -141,7 +141,7 @@ class CPD_SSL():
         loss = InfoNCE(negative_mode='paired').to(self.device)
         batch = batch.to(self.device)
         
-        batch = self.backbone(batch)
+        batch = self.backbone(batch).to(self.device)
         
         query = batch[:-1]
         positive_pair = batch[1:]
